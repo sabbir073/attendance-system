@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 export interface SettingsForm {
   vpnPolicy: "OFF" | "WARN" | "STRICT";
   geofenceEnabled: boolean;
+  geofenceBlocks: boolean;
   enforceCountryLock: boolean;
   allowUnknownIp: boolean;
   blockMockLocation: boolean;
@@ -155,8 +156,15 @@ export function SettingsEditor({ initial }: { initial: SettingsForm }) {
       <Section title="Location integrity">
         <Toggle
           label="Enforce geofence"
+          hint="Measure distance from the assigned office on every punch."
           checked={form.geofenceEnabled}
           onChange={(v) => set("geofenceEnabled", v)}
+        />
+        <Toggle
+          label="Refuse punches outside the radius"
+          hint="Off (recommended): the punch is recorded and flagged, and the exact location is shown to administrators. On: the employee is blocked."
+          checked={form.geofenceBlocks}
+          onChange={(v) => set("geofenceBlocks", v)}
         />
         <Toggle
           label="Block suspected mock location"

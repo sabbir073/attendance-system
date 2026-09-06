@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
@@ -87,9 +88,10 @@ export default async function AdminAttendancePage({
                 <th>Out</th>
                 <th>Worked</th>
                 <th>Method</th>
-                <th>Distance</th>
+                <th>Location</th>
                 <th>Accuracy</th>
                 <th>Integrity</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -126,10 +128,23 @@ export default async function AdminAttendancePage({
                       ) : null}
                     </div>
                   </td>
-                  <td className="tabular-nums">
-                    {r.checkInDistance === null
-                      ? "—"
-                      : `${Math.round(r.checkInDistance)} m`}
+                  <td className="whitespace-nowrap">
+                    {r.checkInLat != null && r.checkInLng != null ? (
+                      <>
+                        <p className="font-mono text-xs text-slate-700">
+                          {r.checkInLat.toFixed(5)}, {r.checkInLng.toFixed(5)}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {r.checkInDistance == null
+                            ? "—"
+                            : `${Math.round(r.checkInDistance)} m from ${r.office?.name ?? "office"}`}
+                        </p>
+                      </>
+                    ) : (
+                      <span className="text-xs text-slate-400">
+                        No coordinates
+                      </span>
+                    )}
                   </td>
                   <td className="tabular-nums">
                     {r.checkInAccuracy === null
@@ -144,6 +159,14 @@ export default async function AdminAttendancePage({
                         Clean
                       </span>
                     )}
+                  </td>
+                  <td>
+                    <Link
+                      href={`/admin/attendance/${r.id}`}
+                      className="btn-outline btn-sm whitespace-nowrap"
+                    >
+                      View map
+                    </Link>
                   </td>
                 </tr>
               ))}

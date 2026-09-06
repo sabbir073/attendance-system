@@ -123,4 +123,23 @@ foreach ($p in @("/dashboard", "/attendance", "/history", "/profile")) {
         "HTTP $($r.Code), $($r.Body.Length) bytes$(if ($bounced) { ' — BOUNCED TO LOGIN' })"
 }
 
+# 10 -----------------------------------------------------------
+# The punch detail page is what an administrator opens to see where an
+# employee actually was. Pull a real attendance id out of the list page.
+Write-Host "`n  Punch location detail:" -ForegroundColor Cyan
+$list = Request "$base/admin/attendance" -Session $sess
+$m = [regex]::Match($list.Body, '/admin/attendance/([a-z0-9]{20,})')
+if ($m.Success) {
+    # NOTE: $pid is a read-only PowerShell automatic variable (process id).
+    $recordId = $m.Groups[1].Value
+    $r = Request "$base/admin/attendance/$recordId" -Session $sess
+    $hasMap = $r.Body -match 'openstreetmap\.org/export/embed'
+    $hasCoords = $r.Body -match 'Check-in evidence'
+    Check "Detail page renders" ($r.Code -eq 200) "HTTP $($r.Code), $($r.Body.Length) bytes"
+    Check "Embedded map present" $hasMap "OpenStreetMap iframe"
+    Check "Evidence panel present" $hasCoords "coordinates, accuracy, IP, method"
+} else {
+    Check "Found an attendance record to open" $false "no link matched in the list page"
+}
+
 Write-Host "`n=== complete ===`n" -ForegroundColor Cyan

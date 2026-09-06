@@ -49,7 +49,7 @@ const nextConfig: NextConfig = {
               // jsDelivr is only contacted if build-time model vendoring
               // failed; with models in public/models nothing leaves the host.
               "connect-src 'self' https://cdn.jsdelivr.net",
-              "frame-src 'self' https://www.openstreetmap.org",
+              "frame-src 'self' https://www.openstreetmap.org https://openstreetmap.org",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",

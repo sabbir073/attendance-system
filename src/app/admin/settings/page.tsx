@@ -23,6 +23,7 @@ export default async function SettingsPage() {
         initial={{
           vpnPolicy: s.vpnPolicy,
           geofenceEnabled: s.geofenceEnabled,
+          geofenceBlocks: s.geofenceBlocks,
           enforceCountryLock: s.enforceCountryLock,
           allowUnknownIp: s.allowUnknownIp,
           blockMockLocation: s.blockMockLocation,

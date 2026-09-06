@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 const schema = z.object({
   vpnPolicy: z.enum(["OFF", "WARN", "STRICT"]),
   geofenceEnabled: z.boolean(),
+  geofenceBlocks: z.boolean(),
   enforceCountryLock: z.boolean(),
   allowUnknownIp: z.boolean(),
   blockMockLocation: z.boolean(),

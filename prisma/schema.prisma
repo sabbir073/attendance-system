@@ -574,6 +574,10 @@ model Setting {
 
   // --- geofence policy ---
   geofenceEnabled     Boolean @default(true)
+  /// When FALSE (the default), a punch made outside the office radius is still
+  /// recorded — it is flagged, and the exact coordinates are shown to the
+  /// administrator to judge. Set TRUE to refuse the punch outright instead.
+  geofenceBlocks      Boolean @default(false)
   defaultRadiusMeters Int     @default(150)
   maxGpsAccuracy      Int     @default(120)
   requireHighAccuracy Boolean @default(true)

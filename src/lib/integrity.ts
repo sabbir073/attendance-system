@@ -271,11 +271,17 @@ export async function evaluateAttendanceAttempt(
       // boundary is not punished for a noisy fix.
       const effective = Math.max(0, distanceMeters - Math.min(accuracy, 50));
       if (effective > office.radiusMeters) {
+        // Default policy records the punch and surfaces the exact position to
+        // an administrator, rather than refusing it. Field staff, load
+        // shedding call-outs and substation visits all legitimately happen
+        // away from the assigned office; a refused punch just produces a
+        // missing day that someone has to correct by hand. Set
+        // `geofenceBlocks` to make this fatal instead.
         add(
           "OUTSIDE_GEOFENCE",
-          `You are ${Math.round(distanceMeters)} m from ${office.name}. You must be within ${office.radiusMeters} m to record attendance.`,
-          100,
-          true,
+          `Recorded ${Math.round(distanceMeters)} m from ${office.name}, outside the ${office.radiusMeters} m radius. The location has been sent to your administrator.`,
+          45,
+          settings.geofenceBlocks,
         );
       }
     }
@@ -326,7 +332,7 @@ export async function evaluateAttendanceAttempt(
       add(
         "IP_UNRESOLVED_ALLOWED",
         "Network origin could not be verified (private or local address).",
-        5,
+        0,
       );
     }
   } else {
@@ -397,10 +403,15 @@ export async function evaluateAttendanceAttempt(
   }
 
   // WebRTC-discovered public address vs the address the server sees.
+  //
+  // Only meaningful when the server actually observes a public client
+  // address. On a LAN or local Docker deployment the server sees ::1 or a
+  // 192.168.x address, so every public WebRTC candidate would "mismatch" and
+  // the check would fire on every single punch. Skip it in that case.
   const publicWebrtc = (signals.webrtcIps ?? []).filter(
     (candidate) => candidate && !isPrivateIp(candidate),
   );
-  if (input.ip && publicWebrtc.length > 0) {
+  if (input.ip && !isPrivateIp(input.ip) && publicWebrtc.length > 0) {
     const mismatch = publicWebrtc.some((candidate) => candidate !== input.ip);
     if (mismatch) {
       vpnDetected = true;
@@ -439,7 +450,7 @@ export async function evaluateAttendanceAttempt(
         add(
           "NEW_DEVICE_ENROLLED",
           "A new device was registered to your account.",
-          15,
+          0,
         );
       }
     } else if (device && !device.trusted) {
