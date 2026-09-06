@@ -84,6 +84,28 @@ export async function getRequestMeta() {
 /*  Session lifecycle                                                  */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Whether to mark cookies `Secure`.
+ *
+ * Keying this off NODE_ENV is the usual shortcut and it is wrong here: the
+ * production image is routinely reached over plain HTTP, either on
+ * http://localhost:3000 or on a LAN address from a phone during GPS testing.
+ * A `Secure` cookie is silently discarded on those origins, so login appears
+ * to succeed and then every subsequent request is anonymous.
+ *
+ * So: trust the actual transport. `x-forwarded-proto` when behind a reverse
+ * proxy, overridable with COOKIE_SECURE for deployments that terminate TLS
+ * somewhere this process cannot observe.
+ */
+async function useSecureCookies(): Promise<boolean> {
+  const override = process.env.COOKIE_SECURE;
+  if (override === "true") return true;
+  if (override === "false") return false;
+
+  const h = await headers();
+  return (h.get("x-forwarded-proto") ?? "").split(",")[0]?.trim() === "https";
+}
+
 export interface CreateSessionInput {
   userId: string;
   ip?: string | null;
@@ -110,7 +132,7 @@ export async function createSession(input: CreateSessionInput) {
   });
 
   const jar = await cookies();
-  const secure = process.env.NODE_ENV === "production";
+  const secure = await useSecureCookies();
 
   // Session cookie: httpOnly so JS (and XSS payloads) cannot read it.
   jar.set(SESSION_COOKIE, token, {

@@ -30,6 +30,18 @@ export function bufferToB64u(buf: ArrayBuffer | Buffer | Uint8Array): string {
   return b.toString("base64url");
 }
 
+/**
+ * Web Crypto's `BufferSource` requires a view backed by a plain ArrayBuffer.
+ * A Node Buffer may be backed by a SharedArrayBuffer (it is pooled), which
+ * TypeScript rejects. Copying into a fresh Uint8Array satisfies both the
+ * type and the runtime.
+ */
+function bytes(buf: Buffer) {
+  const out = new Uint8Array(buf.byteLength);
+  out.set(buf);
+  return out;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Relying-party identity                                             */
 /* ------------------------------------------------------------------ */
@@ -241,7 +253,10 @@ export async function rpIdHashMatches(
   rpIdHash: Buffer,
   rpId: string,
 ): Promise<boolean> {
-  const digest = await crypto.subtle.digest("SHA-256", Buffer.from(rpId, "utf8"));
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(rpId),
+  );
   return Buffer.from(digest).equals(rpIdHash);
 }
 
@@ -292,7 +307,7 @@ export async function verifyAssertionSignature(params: {
 
   // Signed payload = authenticatorData || SHA-256(clientDataJSON)
   const clientHash = Buffer.from(
-    await crypto.subtle.digest("SHA-256", clientData),
+    await crypto.subtle.digest("SHA-256", bytes(clientData)),
   );
   const signed = Buffer.concat([authData, clientHash]);
 
@@ -300,7 +315,7 @@ export async function verifyAssertionSignature(params: {
     if (params.algorithm === COSE_ES256) {
       const key = await crypto.subtle.importKey(
         "spki",
-        spki,
+        bytes(spki),
         { name: "ECDSA", namedCurve: "P-256" },
         false,
         ["verify"],
@@ -308,20 +323,25 @@ export async function verifyAssertionSignature(params: {
       return crypto.subtle.verify(
         { name: "ECDSA", hash: "SHA-256" },
         key,
-        derToP1363(signature),
-        signed,
+        bytes(derToP1363(signature)),
+        bytes(signed),
       );
     }
 
     if (params.algorithm === COSE_RS256) {
       const key = await crypto.subtle.importKey(
         "spki",
-        spki,
+        bytes(spki),
         { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
         false,
         ["verify"],
       );
-      return crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, signed);
+      return crypto.subtle.verify(
+        "RSASSA-PKCS1-v1_5",
+        key,
+        bytes(signature),
+        bytes(signed),
+      );
     }
   } catch {
     return false;

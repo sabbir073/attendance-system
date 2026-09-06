@@ -26,7 +26,9 @@ echo "==> PostgreSQL is ready."
 # 2. Sync schema
 # ---------------------------------------------------------------
 echo "==> Applying database schema (prisma db push)..."
-npx prisma db push --skip-generate --accept-data-loss
+# Note: --skip-generate was removed in Prisma 7. The client is already
+# generated into src/generated/prisma during the image build.
+npx prisma db push --accept-data-loss
 
 # ---------------------------------------------------------------
 # 3. Seed (idempotent — safe to run on every boot)

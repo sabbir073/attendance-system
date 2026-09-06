@@ -1,4 +1,5 @@
 import "dotenv/config";
+import crypto from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "@node-rs/argon2";
 import { PrismaClient } from "../src/generated/prisma/client.js";
@@ -326,7 +327,71 @@ async function main() {
     }
   }
 
-  console.log(`✓ Seed complete. ${people.length} users, ${offices.length} offices, ${created} attendance rows.`);
+  /* ---------------- simulated biometric enrolment ---------------- */
+  // Demo mode: no camera or sensor exists, so these are synthetic records.
+  // Each is stamped simulated = true and must never be read as real proof.
+  const allUsers = await prisma.user.findMany();
+
+  function syntheticDescriptor(seed: string): number[] {
+    const out: number[] = [];
+    let block = crypto.createHash("sha512").update(seed).digest();
+    let cursor = 0;
+    for (let i = 0; i < 1024; i++) {
+      if (cursor + 2 > block.length) {
+        block = crypto.createHash("sha512").update(block).digest();
+        cursor = 0;
+      }
+      out.push(block.readUInt16BE(cursor) / 65535 - 0.5);
+      cursor += 2;
+    }
+    const norm = Math.sqrt(out.reduce((s, v) => s + v * v, 0)) || 1;
+    return out.map((v) => v / norm);
+  }
+
+  let enrolled = 0;
+  for (const u of allUsers) {
+    const existingFace = await prisma.faceTemplate.findFirst({
+      where: { userId: u.id, status: "ACTIVE" },
+    });
+    if (!existingFace) {
+      await prisma.faceTemplate.create({
+        data: {
+          userId: u.id,
+          descriptor: syntheticDescriptor(`${u.id}:FACE`),
+          dimensions: 1024,
+          quality: 0.92,
+          liveness: 0.9,
+          realScore: 0.9,
+          status: "ACTIVE",
+          simulated: true,
+          label: "Simulated face template",
+        },
+      });
+      enrolled++;
+    }
+
+    const existingCred = await prisma.webAuthnCredential.findFirst({
+      where: { userId: u.id, status: "ACTIVE" },
+    });
+    if (!existingCred) {
+      await prisma.webAuthnCredential.create({
+        data: {
+          userId: u.id,
+          credentialId: `sim_${crypto.randomBytes(16).toString("base64url")}`,
+          publicKey: "SIMULATED-NO-KEY-MATERIAL",
+          algorithm: -7,
+          status: "ACTIVE",
+          simulated: true,
+          userVerified: true,
+          label: "Simulated fingerprint",
+          transports: ["internal"],
+        },
+      });
+      enrolled++;
+    }
+  }
+
+  console.log(`✓ Seed complete. ${people.length} users, ${offices.length} offices, ${created} attendance rows, ${enrolled} simulated biometric records.`);
   console.log("");
   console.log("  Admin    : admin@desco.gov.bd    / Admin@Desco2026");
   console.log("  HR       : hr@desco.gov.bd       / Hr@Desco2026");

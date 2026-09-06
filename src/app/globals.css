@@ -79,25 +79,36 @@ body {
            disabled:cursor-not-allowed disabled:bg-slate-100;
   }
 
+  /* Tailwind v4 note: @apply only accepts real utilities, never another
+     custom component class. `@apply btn` is therefore invalid and the base
+     properties are repeated in each variant instead. */
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold
            transition disabled:cursor-not-allowed disabled:opacity-55;
   }
 
   .btn-primary {
-    @apply btn bg-brand-500 text-white hover:bg-brand-600 active:bg-brand-700;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold
+           transition disabled:cursor-not-allowed disabled:opacity-55
+           bg-brand-500 text-white hover:bg-brand-600 active:bg-brand-700;
   }
 
   .btn-navy {
-    @apply btn bg-navy-500 text-white hover:bg-navy-600;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold
+           transition disabled:cursor-not-allowed disabled:opacity-55
+           bg-navy-500 text-white hover:bg-navy-600;
   }
 
   .btn-outline {
-    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold
+           transition disabled:cursor-not-allowed disabled:opacity-55
+           border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
   }
 
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-700;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold
+           transition disabled:cursor-not-allowed disabled:opacity-55
+           bg-red-600 text-white hover:bg-red-700;
   }
 
   .btn-sm {

@@ -273,6 +273,8 @@ model WebAuthnCredential {
   aaguid       String?
   status       BiometricStatus @default(ACTIVE)
   userVerified Boolean         @default(false)
+  /// TRUE when registered in simulation mode — no real authenticator exists.
+  simulated    Boolean         @default(false)
 
   deviceFingerprint String?
   createdAt         DateTime  @default(now())
@@ -303,6 +305,9 @@ model FaceTemplate {
   snapshot   String?
   status     BiometricStatus @default(ACTIVE)
   label      String?
+  /// TRUE when enrolled in simulation mode — the descriptor is synthetic and
+  /// must never be treated as a real biometric template.
+  simulated  Boolean         @default(false)
 
   enrolledById String?
   createdAt    DateTime  @default(now())
@@ -352,6 +357,12 @@ model Attendance {
   /// Optional retained face snapshot (data URL) for audit.
   checkInSnapshot  String?
   checkOutSnapshot String?
+
+  /// TRUE when the biometric step was SIMULATED (demo mode, no real capture).
+  /// Never overwrite these: an attendance row must not imply biometric proof
+  /// it does not have.
+  checkInSimulated  Boolean @default(false)
+  checkOutSimulated Boolean @default(false)
 
   workedMinutes    Int @default(0)
   lateMinutes      Int @default(0)
@@ -608,6 +619,17 @@ model Setting {
   faceEnrolCaptures      Int     @default(3)
   /// Retain a small JPEG of each successful punch for administrator review.
   storeFaceSnapshots     Boolean @default(true)
+
+  // --- biometric simulation (demo mode) ---
+  /// When TRUE, face and fingerprint verification return synthetic results:
+  /// no camera, no authenticator, no real capture. Every attendance row and
+  /// verification record produced this way is stamped simulated = true so a
+  /// demo punch can never be mistaken for real biometric proof.
+  /// Set to FALSE to activate the real face.ts / webauthn.ts paths.
+  biometricSimulationMode Boolean @default(true)
+  /// Percent of simulated attempts that deliberately fail, so retry and
+  /// fallback paths can be demonstrated. 0 = always succeed.
+  simulatedFailureRate    Int     @default(0)
 
   // --- attendance policy ---
   autoCheckoutEnabled Boolean @default(false)
