@@ -1,0 +1,97 @@
+name: desco-attendance
+
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: desco-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-desco}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-desco_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-desco_attendance}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - desco_db_data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-desco} -d ${POSTGRES_DB:-desco_attendance}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks:
+      - desco_net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: desco-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-desco}:${POSTGRES_PASSWORD:-desco_secret}@db:5432/${POSTGRES_DB:-desco_attendance}?schema=public&connection_limit=10
+      SESSION_SECRET: ${SESSION_SECRET:-change-this-to-a-64-char-random-string-before-any-real-deployment}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Dhaka}
+      APP_COUNTRY: ${APP_COUNTRY:-BD}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      IPINFO_TOKEN: ${IPINFO_TOKEN:-}
+      PROXYCHECK_KEY: ${PROXYCHECK_KEY:-}
+      SEED_ON_BOOT: ${SEED_ON_BOOT:-true}
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Face-recognition models. Served from public/models by default; set to
+      # the jsDelivr URL only if build-time vendoring failed.
+      NEXT_PUBLIC_HUMAN_MODEL_PATH: ${HUMAN_MODEL_PATH:-/models/}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    networks:
+      - desco_net
+
+  # ---------------------------------------------------------------
+  # Optional: public HTTPS URL for testing on a real phone.
+  #
+  # Geolocation, camera (face recognition) and WebAuthn (fingerprint) all
+  # require a secure context, and WebAuthn additionally refuses to run on a
+  # bare IP address. So http://192.168.x.x:3000 will fail all three.
+  # localhost is exempt, so desktop testing works without this.
+  #
+  #   docker compose --profile tunnel up -d
+  #   docker compose logs -f tunnel     # copy the trycloudflare.com URL
+  # ---------------------------------------------------------------
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: desco-tunnel
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    depends_on:
+      - app
+    command: tunnel --no-autoupdate --url http://app:3000
+    networks:
+      - desco_net
+
+  adminer:
+    image: adminer:5
+    container_name: desco-adminer
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    networks:
+      - desco_net
+
+volumes:
+  desco_db_data:
+    name: desco_db_data
+
+networks:
+  desco_net:
+    name: desco_net
+    driver: bridge

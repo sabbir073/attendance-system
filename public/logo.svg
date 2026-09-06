@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96" role="img" aria-label="DESCO">
+  <defs>
+    <linearGradient id="descoRing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0E4C92"/>
+      <stop offset="100%" stop-color="#0B7A3B"/>
+    </linearGradient>
+    <linearGradient id="descoBolt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFD34E"/>
+      <stop offset="100%" stop-color="#F2A104"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Emblem -->
+  <g transform="translate(6 8)">
+    <circle cx="40" cy="40" r="37" fill="none" stroke="url(#descoRing)" stroke-width="6"/>
+    <circle cx="40" cy="40" r="28" fill="#0E4C92" opacity="0.07"/>
+    <!-- lightning bolt -->
+    <path d="M46 12 L26 44 H38 L33 68 L55 34 H42 Z" fill="url(#descoBolt)" stroke="#B87503" stroke-width="1.2" stroke-linejoin="round"/>
+    <!-- transmission arcs -->
+    <path d="M14 40a26 26 0 0 1 6-16" fill="none" stroke="#0B7A3B" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M66 40a26 26 0 0 0-6-16" fill="none" stroke="#0B7A3B" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="98" y="49" font-family="Georgia, 'Times New Roman', serif" font-size="38" font-weight="700" letter-spacing="2.5" fill="#0E4C92">DESCO</text>
+  <text x="100" y="70" font-family="Segoe UI, Arial, sans-serif" font-size="10.5" letter-spacing="0.6" fill="#0B7A3B">Dhaka Electric Supply Company Ltd.</text>
+</svg>

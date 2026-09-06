@@ -1,0 +1,21 @@
+# Normalise line endings so the repo behaves identically on Windows and Linux.
+* text=auto eol=lf
+
+# Shell scripts MUST stay LF. A CRLF entrypoint.sh fails inside Alpine with
+# a misleading "no such file or directory" error.
+*.sh text eol=lf
+docker/entrypoint.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binary assets — never diff or convert.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.woff binary
+*.woff2 binary

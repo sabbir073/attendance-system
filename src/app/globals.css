@@ -1,0 +1,180 @@
+@import "tailwindcss";
+
+@theme {
+  /* DESCO brand palette */
+  --color-brand-50: #ecf7f0;
+  --color-brand-100: #d1ecdb;
+  --color-brand-200: #a6d9b9;
+  --color-brand-300: #69c294;
+  --color-brand-400: #3da76d;
+  --color-brand-500: #0B7A3B;
+  --color-brand-600: #096631;
+  --color-brand-700: #075127;
+  --color-brand-800: #053d1e;
+  --color-brand-900: #032a14;
+
+  --color-navy-50: #eef3fb;
+  --color-navy-100: #d5e2f5;
+  --color-navy-200: #a9c3ea;
+  --color-navy-300: #7aa1dd;
+  --color-navy-400: #3f74c4;
+  --color-navy-500: #0E4C92;
+  --color-navy-600: #0c3f7a;
+  --color-navy-700: #0a3362;
+  --color-navy-800: #07264a;
+  --color-navy-900: #051a33;
+
+  --color-volt-400: #FFD34E;
+  --color-volt-500: #F2A104;
+  --color-volt-600: #B87503;
+
+  --font-sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+:root {
+  --surface: #f4f6f9;
+  --card: #ffffff;
+  --ink: #10151c;
+  --muted: #667085;
+  --line: #e3e8ef;
+}
+
+* {
+  border-color: var(--line);
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- reusable primitives ---------- */
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-[var(--line)] bg-white shadow-sm;
+  }
+
+  .card-pad {
+    @apply p-5;
+  }
+
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-slate-700;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900
+           outline-none transition placeholder:text-slate-400
+           focus:border-brand-500 focus:ring-4 focus:ring-brand-500/12
+           disabled:cursor-not-allowed disabled:bg-slate-100;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold
+           transition disabled:cursor-not-allowed disabled:opacity-55;
+  }
+
+  .btn-primary {
+    @apply btn bg-brand-500 text-white hover:bg-brand-600 active:bg-brand-700;
+  }
+
+  .btn-navy {
+    @apply btn bg-navy-500 text-white hover:bg-navy-600;
+  }
+
+  .btn-outline {
+    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+
+  .table-wrap {
+    @apply overflow-x-auto rounded-xl border border-[var(--line)] bg-white;
+  }
+
+  .tbl {
+    @apply w-full min-w-[720px] border-collapse text-sm;
+  }
+
+  .tbl thead th {
+    @apply whitespace-nowrap border-b border-[var(--line)] bg-slate-50 px-4 py-3 text-left
+           text-xs font-semibold uppercase tracking-wide text-slate-500;
+  }
+
+  .tbl tbody td {
+    @apply border-b border-[var(--line)] px-4 py-3 align-middle text-slate-700;
+  }
+
+  .tbl tbody tr:hover {
+    @apply bg-slate-50/70;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold text-slate-900;
+  }
+
+  .muted {
+    @apply text-sm text-slate-500;
+  }
+}
+
+/* ---------- animation ---------- */
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.9); opacity: 0.75; }
+  70% { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.pulse-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: pulse-ring 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #eef1f5;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #eef1f5; }
+::-webkit-scrollbar-thumb { background: #c3ccd8; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #a8b4c4; }

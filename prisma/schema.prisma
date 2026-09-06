@@ -1,0 +1,627 @@
+// ============================================================
+//  DESCO Attendance Management System — Prisma Schema
+//  PostgreSQL 18 · Prisma 7 (prisma-client generator + pg adapter)
+// ============================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ------------------------------------------------------------
+//  Enums
+// ------------------------------------------------------------
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  HR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  HALF_DAY
+  ABSENT
+  ON_LEAVE
+  HOLIDAY
+  WEEKEND
+}
+
+enum AttendanceSource {
+  WEB
+  ADMIN
+  SYSTEM
+  DEVICE_AGENT
+}
+
+/// How the employee proved who they are at the moment of the punch.
+enum VerificationMethod {
+  /// Geolocation + device/network integrity only.
+  GPS
+  /// WebAuthn platform authenticator — Windows Hello, Android fingerprint, Touch ID.
+  FINGERPRINT
+  /// In-browser face embedding match with liveness + anti-spoof.
+  FACE
+}
+
+enum BiometricStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
+enum IntegrityAction {
+  LOGIN
+  CHECK_IN
+  CHECK_OUT
+  NETWORK_CHECK
+  BIOMETRIC_ENROL
+  BIOMETRIC_VERIFY
+}
+
+enum IntegrityDecision {
+  ALLOWED
+  FLAGGED
+  BLOCKED
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum HolidayType {
+  PUBLIC
+  OPTIONAL
+  COMPANY
+}
+
+enum VpnPolicy {
+  OFF
+  WARN
+  STRICT
+}
+
+// ------------------------------------------------------------
+//  Organisation
+// ------------------------------------------------------------
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  code      String   @unique
+  headId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+
+  @@map("departments")
+}
+
+/// A physical DESCO site with a circular geofence.
+model Office {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  code         String   @unique
+  address      String
+  latitude     Float
+  longitude    Float
+  radiusMeters Int      @default(150)
+  timezone     String   @default("Asia/Dhaka")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  users      User[]
+  attendance Attendance[]
+
+  @@map("offices")
+}
+
+model Shift {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  startTime          String // "09:00" — local wall-clock in office timezone
+  endTime            String // "17:00"
+  graceMinutes       Int      @default(15)
+  halfDayAfterMinutes Int     @default(180)
+  minWorkMinutes     Int      @default(480)
+  /// ISO weekdays that are working days. 1 = Monday … 7 = Sunday.
+  workingDays        Int[]    @default([7, 1, 2, 3, 4])
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  users User[]
+
+  @@map("shifts")
+}
+
+// ------------------------------------------------------------
+//  Identity
+// ------------------------------------------------------------
+
+model User {
+  id           String     @id @default(cuid())
+  employeeCode String     @unique
+  name         String
+  email        String     @unique
+  phone        String?
+  designation  String?
+  passwordHash String
+  role         Role       @default(EMPLOYEE)
+  status       UserStatus @default(ACTIVE)
+
+  departmentId String?
+  officeId     String?
+  shiftId      String?
+
+  joinedAt  DateTime @default(now())
+  avatarUrl String?
+
+  // --- security state ---
+  mustChangePassword Boolean   @default(false)
+  passwordChangedAt  DateTime  @default(now())
+  twoFactorEnabled   Boolean   @default(false)
+  twoFactorSecret    String?
+  failedLoginCount   Int       @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  lastLoginIp        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  department      Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  office          Office?          @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  shift           Shift?           @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  sessions        Session[]
+  devices         Device[]
+  credentials     WebAuthnCredential[]
+  faceTemplates   FaceTemplate[]
+  attendance      Attendance[]
+  integrityEvents IntegrityEvent[]
+  leaveRequests   LeaveRequest[]   @relation("LeaveOwner")
+  reviewedLeaves  LeaveRequest[]   @relation("LeaveReviewer")
+  auditLogs       AuditLog[]
+  nonces          Nonce[]
+
+  @@index([role, status])
+  @@index([departmentId])
+  @@index([officeId])
+  @@map("users")
+}
+
+/// Opaque server-side sessions. Only the SHA-256 hash of the token is stored,
+/// so a database leak cannot be replayed as a valid cookie.
+model Session {
+  id                String    @id @default(cuid())
+  userId            String
+  tokenHash         String    @unique
+  ip                String?
+  userAgent         String?
+  deviceFingerprint String?
+  createdAt         DateTime  @default(now())
+  lastSeenAt        DateTime  @default(now())
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  revokedReason     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// Browser/device binding. Attendance from an unknown device can be blocked
+/// or flagged depending on policy.
+model Device {
+  id           String   @id @default(cuid())
+  userId       String
+  fingerprint  String
+  label        String?
+  userAgent    String?
+  trusted      Boolean  @default(false)
+  approvedById String?
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime @default(now())
+  useCount     Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fingerprint])
+  @@index([userId])
+  @@map("devices")
+}
+
+/// A WebAuthn platform authenticator = the "fingerprint" method.
+///
+/// Windows Hello / Android fingerprint / Touch ID hold the private key in
+/// hardware. We only ever store the PUBLIC key (SPKI, base64url). No
+/// fingerprint image or biometric template is transmitted or stored anywhere
+/// in this system — the sensor never releases it.
+model WebAuthnCredential {
+  id           String          @id @default(cuid())
+  userId       String
+  /// base64url-encoded raw credential id
+  credentialId String          @unique
+  /// base64url-encoded SPKI public key
+  publicKey    String
+  /// COSE algorithm identifier (-7 = ES256, -257 = RS256)
+  algorithm    Int
+  /// Authenticator signature counter — a decrease implies a cloned key.
+  signCount    Int             @default(0)
+  transports   String[]        @default([])
+  label        String?
+  aaguid       String?
+  status       BiometricStatus @default(ACTIVE)
+  userVerified Boolean         @default(false)
+
+  deviceFingerprint String?
+  createdAt         DateTime  @default(now())
+  lastUsedAt        DateTime?
+  useCount          Int       @default(0)
+  revokedAt         DateTime?
+  revokedReason     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("webauthn_credentials")
+}
+
+/// An enrolled face embedding. Stores the 1024-dimension descriptor produced
+/// in the browser, never a raw photograph unless snapshot retention is
+/// explicitly enabled in policy.
+model FaceTemplate {
+  id         String          @id @default(cuid())
+  userId     String
+  descriptor Float[]
+  dimensions Int             @default(1024)
+  quality    Float           @default(0)
+  liveness   Float?
+  realScore  Float?
+  /// Optional low-resolution JPEG data URL retained for administrator review.
+  snapshot   String?
+  status     BiometricStatus @default(ACTIVE)
+  label      String?
+
+  enrolledById String?
+  createdAt    DateTime  @default(now())
+  lastMatchAt  DateTime?
+  matchCount   Int       @default(0)
+  revokedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("face_templates")
+}
+
+// ------------------------------------------------------------
+//  Attendance
+// ------------------------------------------------------------
+
+model Attendance {
+  id     String   @id @default(cuid())
+  userId String
+  /// Calendar day in the office timezone (date-only).
+  date   DateTime @db.Date
+
+  checkInAt  DateTime?
+  checkOutAt DateTime?
+
+  status     AttendanceStatus @default(ABSENT)
+  source     AttendanceSource @default(WEB)
+  officeId   String?
+
+  // --- how identity was proven at each punch ---
+  checkInMethod  VerificationMethod?
+  checkOutMethod VerificationMethod?
+
+  /// Face similarity (0..1) achieved against the enrolled template.
+  checkInFaceScore  Float?
+  checkOutFaceScore Float?
+  /// Human liveness / anti-spoof scores (0..1) at the moment of capture.
+  checkInLiveness   Float?
+  checkOutLiveness  Float?
+  checkInRealScore  Float?
+  checkOutRealScore Float?
+  /// WebAuthn credential that signed the punch.
+  checkInCredentialId  String?
+  checkOutCredentialId String?
+  /// Optional retained face snapshot (data URL) for audit.
+  checkInSnapshot  String?
+  checkOutSnapshot String?
+
+  workedMinutes    Int @default(0)
+  lateMinutes      Int @default(0)
+  earlyLeaveMinutes Int @default(0)
+  overtimeMinutes  Int @default(0)
+
+  // --- geo evidence: check-in ---
+  checkInLat      Float?
+  checkInLng      Float?
+  checkInAccuracy Float?
+  checkInDistance Float?
+  checkInIp       String?
+
+  // --- geo evidence: check-out ---
+  checkOutLat      Float?
+  checkOutLng      Float?
+  checkOutAccuracy Float?
+  checkOutDistance Float?
+  checkOutIp       String?
+
+  // --- integrity ---
+  riskScore   Int      @default(0)
+  flagged     Boolean  @default(false)
+  flagReasons String[] @default([])
+
+  note         String?
+  adjustedById String?
+  adjustedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  office Office? @relation(fields: [officeId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, date])
+  @@index([date])
+  @@index([status])
+  @@index([flagged])
+  @@map("attendance")
+}
+
+/// Every security-relevant decision the risk engine makes, stored verbatim.
+/// This is the audit trail that makes location claims defensible.
+model IntegrityEvent {
+  id       String            @id @default(cuid())
+  userId   String?
+  action   IntegrityAction
+  decision IntegrityDecision
+  riskScore Int              @default(0)
+  reasons  String[]          @default([])
+
+  ip           String?
+  ipCountry    String?
+  ipCity       String?
+  ipIsp        String?
+  ipAsn        String?
+  vpnDetected  Boolean @default(false)
+  proxyDetected Boolean @default(false)
+  hostingDetected Boolean @default(false)
+
+  method          VerificationMethod?
+  faceScore       Float?
+  livenessScore   Float?
+  realScore       Float?
+  credentialId    String?
+
+  browserTimezone String?
+  clockSkewMs     Int?
+  gpsLat          Float?
+  gpsLng          Float?
+  gpsAccuracy     Float?
+  distanceMeters  Float?
+  mockLocationSuspected Boolean @default(false)
+  webrtcIps       String[] @default([])
+
+  deviceFingerprint String?
+  userAgent         String?
+  raw               Json?
+
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([decision])
+  @@map("integrity_events")
+}
+
+/// Single-use, short-lived server challenge that must accompany a punch.
+/// Prevents replaying a previously captured, valid-looking GPS payload.
+model Nonce {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  purpose   String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("nonces")
+}
+
+// ------------------------------------------------------------
+//  Leave & calendar
+// ------------------------------------------------------------
+
+model LeaveType {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  code        String  @unique
+  daysPerYear Int     @default(0)
+  paid        Boolean @default(true)
+  color       String  @default("#0B7A3B")
+  isActive    Boolean @default(true)
+
+  requests LeaveRequest[]
+
+  @@map("leave_types")
+}
+
+model LeaveRequest {
+  id          String      @id @default(cuid())
+  userId      String
+  leaveTypeId String
+  startDate   DateTime    @db.Date
+  endDate     DateTime    @db.Date
+  days        Int
+  reason      String
+  status      LeaveStatus @default(PENDING)
+
+  reviewedById String?
+  reviewedAt   DateTime?
+  reviewNote   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User      @relation("LeaveOwner", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer   User?     @relation("LeaveReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  leaveType  LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([status])
+  @@map("leave_requests")
+}
+
+model Holiday {
+  id        String      @id @default(cuid())
+  date      DateTime    @unique @db.Date
+  name      String
+  type      HolidayType @default(PUBLIC)
+  createdAt DateTime    @default(now())
+
+  @@map("holidays")
+}
+
+// ------------------------------------------------------------
+//  Governance
+// ------------------------------------------------------------
+
+model AuditLog {
+  id       String  @id @default(cuid())
+  actorId  String?
+  action   String
+  entity   String
+  entityId String?
+  before   Json?
+  after    Json?
+  ip       String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ip        String?
+  userAgent String?
+  success   Boolean  @default(false)
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
+  @@map("login_attempts")
+}
+
+/// Global policy. Exactly one row, id = "global".
+model Setting {
+  id String @id @default("global")
+
+  organisationName String @default("Dhaka Electric Supply Company Limited")
+  organisationShort String @default("DESCO")
+  timezone         String @default("Asia/Dhaka")
+  expectedCountry  String @default("BD")
+
+  // --- geofence policy ---
+  geofenceEnabled     Boolean @default(true)
+  defaultRadiusMeters Int     @default(150)
+  maxGpsAccuracy      Int     @default(120)
+  requireHighAccuracy Boolean @default(true)
+
+  // --- anti-spoof policy ---
+  blockMockLocation    Boolean @default(true)
+  requireDeviceBinding Boolean @default(true)
+  maxDevicesPerUser    Int     @default(2)
+  maxClockSkewMs       Int     @default(120000)
+  impossibleTravelKmh  Int     @default(300)
+
+  // --- VPN policy ---
+  vpnPolicy          VpnPolicy @default(STRICT)
+  blockOnIpMismatch  Boolean   @default(true)
+  allowUnknownIp     Boolean   @default(true)
+  enforceCountryLock Boolean   @default(true)
+
+  // --- verification method policy ---
+  allowGpsOnly     Boolean @default(true)
+  allowFingerprint Boolean @default(true)
+  allowFace        Boolean @default(true)
+  /// When true, a GPS-only punch is refused — the employee must additionally
+  /// pass fingerprint or face verification.
+  requireBiometric Boolean @default(false)
+  /// Method an employee must use when they have any biometric enrolled.
+  preferEnrolledMethod Boolean @default(true)
+
+  // --- WebAuthn (fingerprint) policy ---
+  webauthnRequireUserVerification Boolean @default(true)
+  webauthnAllowRoaming            Boolean @default(false)
+  maxCredentialsPerUser           Int     @default(3)
+
+  // --- face recognition policy ---
+  /// Cosine similarity an embedding must reach against an enrolled template.
+  faceMatchThreshold     Float   @default(0.72)
+  /// Minimum face-detector confidence for the captured frame.
+  faceMinDetectionScore  Float   @default(0.6)
+  faceLivenessRequired   Boolean @default(true)
+  faceLivenessThreshold  Float   @default(0.6)
+  faceAntiSpoofThreshold Float   @default(0.6)
+  /// Number of frames that must independently pass during a capture.
+  faceRequiredFrames     Int     @default(3)
+  faceEnrolCaptures      Int     @default(3)
+  /// Retain a small JPEG of each successful punch for administrator review.
+  storeFaceSnapshots     Boolean @default(true)
+
+  // --- attendance policy ---
+  autoCheckoutEnabled Boolean @default(false)
+  autoCheckoutTime    String  @default("22:00")
+  riskBlockThreshold  Int     @default(70)
+  riskFlagThreshold   Int     @default(35)
+
+  // --- session policy ---
+  sessionTtlHours       Int @default(12)
+  maxFailedLogins       Int @default(5)
+  lockoutMinutes        Int @default(15)
+  passwordMinLength     Int @default(10)
+
+  updatedAt DateTime @updatedAt @default(now())
+
+  @@map("settings")
+}
